@@ -20,19 +20,22 @@ void ProxemicLayer::onInitialize()
 
     RCLCPP_INFO(node->get_logger(),"adios\n");
 
-    sub_ = node->create_subscription<geometry_msgs::msg::Pose>("/people_topic",1,std::bind(&ProxemicLayer::peopleCallBack, this, std::placeholders::_1));
-
-    // sub_ = node->create_subscription<geometry_msgs::msg::Pose>("/people_topic",
-    // rclcpp::QoS(rclcpp::KeepLast(10)).transient_local().reliable(),std::bind(&SocialLayer::setActionCallback, this, std::placeholders::_1));
-    //-------------------------------------------------------------------
+    sub_ = node->create_subscription<geometry_msgs::msg::PoseStamped>("/people_topic",1,std::bind(&ProxemicLayer::peopleCallBack, this, std::placeholders::_1));
 
     declareParameter("enabled", rclcpp::ParameterValue(true));    
     node->get_parameter(name_ + "." + "enabled", enabled_);
 
     need_recalculation_ = false;
-    pose_.position.x = 0.0;
-    pose_.position.y = 0.0;
-    pose_.orientation.z = 0.0;
+    pose_.pose.position.x = 0.0;
+    pose_.pose.position.y = 0.0;
+    pose_.pose.position.z = 0.0;
+    pose_.pose.orientation.x = 0.0;
+    pose_.pose.orientation.y = 0.0;
+    pose_.pose.orientation.z = 0.0;
+    pose_.pose.orientation.w = 0.0;
+    pose_.header.frame_id = "map";
+    pose_.header.stamp.sec = 0;
+    pose_.header.stamp.nanosec = 0;
 
 }
 
@@ -67,17 +70,14 @@ bool ProxemicLayer::getAgentTFs(std::vector<tf2::Transform> & agents) const
     return true;
 }
 
-void ProxemicLayer::peopleCallBack(const geometry_msgs::msg::Pose::SharedPtr msg){
-    
-    auto node = node_.lock();
-    RCLCPP_INFO(node->get_logger(),"Antes de asignar: [x:%f, y:%f, o:%f]", pose_.position.x, pose_.position.y, pose_.orientation.z);
-    
-    pose_.position.x = msg->position.x;
-    pose_.position.y = msg->position.y;
-    pose_.orientation.z = msg->orientation.z;
+void ProxemicLayer::peopleCallBack(const geometry_msgs::msg::PoseStamped::SharedPtr msg){
+        
+    pose_.pose.position.x = msg->pose.position.x;
+    pose_.pose.position.y = msg->pose.position.y;
+    pose_.pose.orientation.z = msg->pose.orientation.z;
 
-    RCLCPP_INFO(node->get_logger(),"Me llega: [x:%f, y:%f, o:%f]", msg->position.x, msg->position.y, msg->orientation.z);
-    RCLCPP_INFO(node->get_logger(),"He recibido la pose: [x:%f, y:%f, o:%f]", pose_.position.x, pose_.position.y, pose_.orientation.z);
+    auto node = node_.lock();
+    RCLCPP_INFO(node->get_logger(),"He recibido la pose: [x:%f, y:%f, o:%f]", pose_.pose.position.x, pose_.pose.position.y, pose_.pose.orientation.z);
 
     need_recalculation_ = true;
 }
@@ -86,12 +86,17 @@ void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_ya
     
     // ejemplo sencillo de bounds
     if (need_recalculation_ && !enabled_){
-        *min_x = (pose_.position.x)-3;
-        *min_y = (pose_.position.y)-3;
-        *max_x = (pose_.position.x)+3;
-        *max_y = (pose_.position.y)+3;
+        *min_x = (pose_.pose.position.x)-0.1;
+        *min_y = (pose_.pose.position.y)-0.1;
+        *max_x = (pose_.pose.position.x)+0.1;
+        *max_y = (pose_.pose.position.y)+0.1;
+        // *min_x = std::min(*min_x, pose_.pose.position.x - 0.1);
+        // *min_y = std::min(*min_y, pose_.pose.position.y - 0.1);
+        // *max_x = std::max(*max_x, pose_.pose.position.x + 0.1);
+        // *max_y = std::max(*max_y, pose_.pose.position.y + 0.1);
         need_recalculation_ = false;
     }
+
 }
 
 void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int min_i, int min_j, int max_i, int max_j)
@@ -115,34 +120,43 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
     // pointer and then calling updateWithTrueOverwrite():
 
     //DESCOMENTAR:
-    unsigned char * master_array = master_grid.getCharMap();
-    unsigned int size_x = master_grid.getSizeInCellsX();
-    unsigned int size_y = master_grid.getSizeInCellsY();
+    if (need_recalculation_){
+        unsigned char * master_array = master_grid.getCharMap();
+        unsigned int size_x = master_grid.getSizeInCellsX();
+        unsigned int size_y = master_grid.getSizeInCellsY();
 
-    // {min_i, min_j} - {max_i, max_j} - are update-window coordinates.
-    // These variables are used to update the costmap only within this window
-    // avoiding the updates of whole area.
-    //
-    // Fixing window coordinates with map size if necessary.
+        // {min_i, min_j} - {max_i, max_j} - are update-window coordinates.
+        // These variables are used to update the costmap only within this window
+        // avoiding the updates of whole area.
+        //
+        // Fixing window coordinates with map size if necessary.
 
-    //DESCOMENTAR:
-    //min_i = std::max(0, min_i);
-    //min_j = std::max(0, min_j);
-    max_i = std::min(static_cast<int>(size_x), max_i);
-    max_j = std::min(static_cast<int>(size_y), max_j);
+        //min_i = std::max(0, min_i);
+        //min_j = std::max(0, min_j);
+        //DESCOMENTAR:
+        
+        max_i = std::min(static_cast<int>(size_x), max_i);
+        max_j = std::min(static_cast<int>(size_y), max_j);
+        min_i = std::max(0, min_i);
+        min_j = std::max(0, min_j);
 
-    // Simply computing one-by-one cost per each cell
-    int gradient_index;
-    for (int j = min_j; j < max_j; j++) {
-        for (int i = min_i; i < max_i; i++) {
-            int index = master_grid.getIndex(i, j);
-            // setting the gradient cost
-            unsigned char cost = LETHAL_OBSTACLE;
-            costmap_[index] = cost;
+        auto node = node_.lock();
+        RCLCPP_INFO(node->get_logger(),"Bounds after: [max_x:%d, min_x:%d, max_y:%d, min_y:%d]", max_i, min_i, max_j, min_j);
+
+        // Simply computing one-by-one cost per each cell
+        for (int j = min_j; j < max_j; j++) {
+            for (int i = min_i; i < max_i; i++) {
+                int index = master_grid.getIndex(i, j);
+                // setting the cost
+                unsigned char cost = LETHAL_OBSTACLE;
+                master_array[index] = cost;
+            }
         }
+
+        //need_recalculation_ = false;
     }
 
-    updateWithAddition(master_grid, min_i, min_j, max_i, max_j);
+    // updateWithAddition(master_grid, min_i, min_j, max_i, max_j);
 
 }
 
