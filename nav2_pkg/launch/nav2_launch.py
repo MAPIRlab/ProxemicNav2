@@ -37,7 +37,7 @@ def generate_launch_description():
                        'amcl',
                        'controller_server',
                        'planner_server',
-                       'recoveries_server',
+                       'behavior_server',
                        'bt_navigator',
                        'waypoint_follower'
                        ]
@@ -124,9 +124,9 @@ def generate_launch_description():
         
         # RECOVERIES (recovery behaviours)
         Node(
-            package='nav2_recoveries',
-            executable='recoveries_server',
-            name='recoveries_server',
+            package='nav2_behaviors',
+            executable='behavior_server',
+            name='behavior_server',
             output='screen',
             parameters=[configured_params],
             remappings=remappings),

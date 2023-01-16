@@ -30,11 +30,11 @@ def generate_launch_description():
     namespace = LaunchConfiguration('namespace')
     use_sim_time = LaunchConfiguration('use_sim_time')
     autostart = LaunchConfiguration('autostart')
-    params_file = os.path.join(my_dir, 'launch', 'nav2_params_slam.yaml')
+    params_file = os.path.join(my_dir, 'launch', 'nav2_params.yaml')
 
     lifecycle_nodes = ['controller_server',
                        'planner_server',
-                       'recoveries_server',
+                       'behavior_server',
                        'bt_navigator',
                        'waypoint_follower']
 
@@ -98,9 +98,9 @@ def generate_launch_description():
             remappings=remappings),
 
         Node(
-            package='nav2_recoveries',
-            executable='recoveries_server',
-            name='recoveries_server',
+            package='nav2_behaviors',
+            executable='behavior_server',
+            name='behavior_server',
             output='screen',
             parameters=[configured_params],
             remappings=remappings),
@@ -129,5 +129,4 @@ def generate_launch_description():
             parameters=[{'use_sim_time': use_sim_time},
                         {'autostart': autostart},
                         {'node_names': lifecycle_nodes}]),
-
     ])
