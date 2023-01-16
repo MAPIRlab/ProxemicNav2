@@ -22,4 +22,5 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
+pluginlib_export_plugin_description_file(nav2_costmap_2d proxemic_layer.xml)
 ament_package()
