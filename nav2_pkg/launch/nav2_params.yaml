@@ -205,7 +205,7 @@ local_costmap:
     ros__parameters:
       update_frequency: 5.0
       publish_frequency: 2.0
-      global_frame: odom
+      global_frame: map #______________________________ESTO, ESTABA odom
       robot_base_frame: base_link
       use_sim_time: False
       rolling_window: true
@@ -229,7 +229,7 @@ local_costmap:
         mark_threshold: 0
         observation_sources: scan
         scan:
-          topic: /scan
+          topic: /scan_front #______________________________ESTO, ESTABA /scan
           max_obstacle_height: 2.0
           clearing: True
           marking: True
