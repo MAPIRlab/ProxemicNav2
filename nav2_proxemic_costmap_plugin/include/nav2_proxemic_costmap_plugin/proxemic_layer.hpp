@@ -16,7 +16,12 @@ namespace nav2_proxemic_costmap_plugin
 class ProxemicLayer : public nav2_costmap_2d::CostmapLayer
 {
 public:
-  ProxemicLayer();
+  ProxemicLayer()
+  {
+    costmap_ = NULL;  // this is the unsigned char* member of parent class Costmap2D.
+  }
+
+  virtual ~ProxemicLayer();
 
   virtual void onInitialize();
 
@@ -30,8 +35,6 @@ public:
 
   virtual void updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int min_i, int min_j, int max_i, int max_j);
 
-  virtual void matchSize();
-
   virtual void onFootprintChanged();
 
   virtual void reset();
@@ -44,23 +47,19 @@ private:
   
   double last_min_x_, last_min_y_, last_max_x_, last_max_y_;
 
-  //geometry_msgs::msg::Pose::SharedPtr pose_;
+  bool update_cost_;
+
   geometry_msgs::msg::PoseStamped pose_;
 
   // Indicates that the entire gradient should be recalculated next time.
   bool need_recalculation_;
 
-  std::shared_ptr<nav2_costmap_2d::Costmap2D> proxemic_costmap_;
-  
-  //std::vector<std::string> agent_ids_;
-  //std::string tf_prefix_;
-  //std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
-  //std::string global_frame_;
+  bool rolling_window_;
 
-  // Size of gradient in cells
-  // int GRADIENT_SIZE = 20;
-  // Step of increasing cost per one cell in gradient
-  // int GRADIENT_FACTOR = 10;
+  std::string global_frame_;  ///< @brief The global frame for the costmap
+  std::shared_ptr<nav2_costmap_2d::Costmap2D> proxemic_costmap_;
+  //std::shared_ptr<nav2_costmap_2d::Costmap2DPublisher> costmap_pub_{nullptr};
+
 };
 
 }  // namespace nav2_proxemic_costmap_plugin
