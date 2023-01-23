@@ -164,13 +164,15 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
 
             for (int j = min_j; j < max_j; j++) {
                 for (int i = min_i; i < max_i; i++) {
+                    RCLCPP_INFO(node->get_logger(),"dibujar, %d - [%d, %d]", k, i, j);
                     unsigned char cost = LETHAL_OBSTACLE;
                     setCost(i, j, cost);
                 }
             }
+            updateWithMax(master_grid, min_i, min_j, max_i, max_j);
         }
 
-        updateWithMax(master_grid, min_i, min_j, max_i, max_j);
+        //updateWithMax(master_grid, min_i, min_j, max_i, max_j);
         update_cost_ = false;
         posesx.clear();
         posesy.clear();
