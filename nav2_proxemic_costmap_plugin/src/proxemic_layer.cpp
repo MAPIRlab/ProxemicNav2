@@ -17,7 +17,7 @@ void ProxemicLayer::onInitialize()
 {
     auto node = node_.lock(); //node_ (weak_ptr), node (shared_ptr)
 
-    sub_ = node->create_subscription<std::vector<geometry_msgs::msg::PoseStamped>>("/people_topic",10,std::bind(&ProxemicLayer::peopleCallBack, this, std::placeholders::_1));
+    sub_ = node->create_subscription<geometry_msgs::msg::PoseArray>("/poses_topic",10,std::bind(&ProxemicLayer::peopleCallBack, this, std::placeholders::_1));
 
     declareParameter("enabled", rclcpp::ParameterValue(true));    
     node->get_parameter(name_ + "." + "enabled", enabled_);
@@ -72,15 +72,24 @@ bool ProxemicLayer::getAgentTFs(std::vector<tf2::Transform> & agents) const
     return true;
 }
 
-void ProxemicLayer::peopleCallBack(const std::vector<geometry_msgs::msg::PoseStamped> msg){
+void ProxemicLayer::peopleCallBack(const geometry_msgs::msg::PoseArray msg){
 
     auto node = node_.lock();
 
-    int i_max = msg.size();
-    for (int i = 0; i < (i_max+1); i++){
-        poses_[i] = msg[i];
-        RCLCPP_INFO(node->get_logger(),"He recibido la pose: [x:%f, y:%f, o:%f]", poses_[i].pose.position.x, poses_[i].pose.position.y, poses_[i].pose.orientation.z);
-        i++;
+    int i_max = msg.poses.size();
+
+    RCLCPP_INFO(node->get_logger(),"He recibido %d poses. (callback)",i_max);
+
+    posesx.clear();
+    posesy.clear();
+    posesz.clear();
+
+    for (int i = 0; i < i_max; i++){
+        RCLCPP_INFO(node->get_logger(),"Bucle, %d", i);
+        posesx.push_back(msg.poses[i].position.x);
+        posesy.push_back(msg.poses[i].position.y);
+        posesz.push_back(msg.poses[i].orientation.z);
+        RCLCPP_INFO(node->get_logger(),"He recibido la pose: [x:%f, y:%f, o:%f]", posesx[i], posesy[i], posesz[i]);
     }
 
     need_recalculation_ = true;
@@ -90,21 +99,19 @@ void ProxemicLayer::peopleCallBack(const std::vector<geometry_msgs::msg::PoseSta
 void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, double * min_x, double * min_y, double * max_x, double * max_y){ 
     
     auto node = node_.lock();
+    RCLCPP_INFO(node->get_logger(),"He recibido %lu poses. (bounds)",posesx.size());
+
 
     if(need_recalculation_){
-        std::vector<float> posesx;
-        std::vector<float> posesy;
-
         *max_x = 0.5;
         *max_y = 0.5;
         *min_x = - 0.5;
         *min_y = - 0.5;
 
-        int tam = poses_.size();
-        for (int i = 0; i < tam; i++){
-            posesx[i] = poses_[i].pose.position.x;
-            posesy[i] = poses_[i].pose.position.y;
+        RCLCPP_INFO(node->get_logger(),"Dentro bounds");
 
+        int tam = posesx.size();
+        for (int i = 0; i < tam; i++){
             if(posesx[i] > *max_x){
                 *max_x = posesx[i] + 1;
             }
@@ -119,9 +126,6 @@ void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_ya
             }
         }
 
-        posesx.clear();
-        posesy.clear();
-
         need_recalculation_ = false;
         update_cost_ = true;
     }
@@ -134,27 +138,29 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
     if (!enabled_) {return;}
     
     auto node = node_.lock();
+    RCLCPP_INFO(node->get_logger(),"He recibido %lu poses. (costs)",posesx.size());
 
     if(update_cost_){
 
-        std::vector<float> posesx;
-        std::vector<float> posesy;
+        RCLCPP_INFO(node->get_logger(),"Dentro costs");
 
-        std::vector<int> mapx;
-        std::vector<int> mapy;
+        // std::vector<int> mapx;
+        // std::vector<int> mapy;
 
-        int tam = poses_.size();
+        int tam = posesx.size();
 
         for (int k = 0; k < tam; k++){
-            posesx[k] = poses_[k].pose.position.x;
-            posesy[k] = poses_[k].pose.position.y;
 
-            worldToMapEnforceBounds(posesx[k], posesy[k], mapx[k], mapy[k]);
+            int map_x = 0;
+            int map_y = 0;
 
-            max_i = mapx[k] + 5;
-            max_j = mapy[k] + 5;
-            min_i = mapx[k] - 5;
-            min_j = mapy[k] - 5;
+            worldToMapEnforceBounds(posesx[k], posesy[k], map_x, map_y);
+
+            RCLCPP_INFO(node->get_logger(),"Bucle costs, %d", k);
+            max_i = map_x + 5;
+            max_j = map_y + 5;
+            min_i = map_x - 5;
+            min_j = map_y - 5;
 
             for (int j = min_j; j < max_j; j++) {
                 for (int i = min_i; i < max_i; i++) {
@@ -166,7 +172,9 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
 
         updateWithMax(master_grid, min_i, min_j, max_i, max_j);
         update_cost_ = false;
-        poses_.clear();
+        posesx.clear();
+        posesy.clear();
+        posesz.clear();
     }
 }
 
