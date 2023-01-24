@@ -85,11 +85,10 @@ void ProxemicLayer::peopleCallBack(const geometry_msgs::msg::PoseArray msg){
     posesz.clear();
 
     for (int i = 0; i < i_max; i++){
-        RCLCPP_INFO(node->get_logger(),"Bucle, %d", i);
         posesx.push_back(msg.poses[i].position.x);
         posesy.push_back(msg.poses[i].position.y);
         posesz.push_back(msg.poses[i].orientation.z);
-        RCLCPP_INFO(node->get_logger(),"He recibido la pose: [x:%f, y:%f, o:%f]", posesx[i], posesy[i], posesz[i]);
+        //RCLCPP_INFO(node->get_logger(),"He recibido la pose: [x:%f, y:%f, o:%f]", posesx[i], posesy[i], posesz[i]);
     }
 
     need_recalculation_ = true;
@@ -99,7 +98,7 @@ void ProxemicLayer::peopleCallBack(const geometry_msgs::msg::PoseArray msg){
 void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, double * min_x, double * min_y, double * max_x, double * max_y){ 
     
     auto node = node_.lock();
-    RCLCPP_INFO(node->get_logger(),"He recibido %lu poses. (bounds)",posesx.size());
+    //RCLCPP_INFO(node->get_logger(),"He recibido %lu poses. (bounds)",posesx.size());
 
 
     if(need_recalculation_){
@@ -138,7 +137,7 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
     if (!enabled_) {return;}
     
     auto node = node_.lock();
-    RCLCPP_INFO(node->get_logger(),"He recibido %lu poses. (costs)",posesx.size());
+    //RCLCPP_INFO(node->get_logger(),"He recibido %lu poses. (costs)",posesx.size());
 
     if(update_cost_){
 
@@ -156,7 +155,7 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
 
             worldToMapEnforceBounds(posesx[k], posesy[k], map_x, map_y);
 
-            RCLCPP_INFO(node->get_logger(),"Bucle costs, %d", k);
+            //RCLCPP_INFO(node->get_logger(),"Bucle costs, %d", k);
             max_i = map_x + 5;
             max_j = map_y + 5;
             min_i = map_x - 5;
@@ -164,19 +163,21 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
 
             for (int j = min_j; j < max_j; j++) {
                 for (int i = min_i; i < max_i; i++) {
-                    RCLCPP_INFO(node->get_logger(),"dibujar, %d - [%d, %d]", k, i, j);
+                    //RCLCPP_INFO(node->get_logger(),"dibujar, %d - [%d, %d]", k, i, j);
                     unsigned char cost = LETHAL_OBSTACLE;
                     setCost(i, j, cost);
                 }
             }
             updateWithMax(master_grid, min_i, min_j, max_i, max_j);
         }
-
-        //updateWithMax(master_grid, min_i, min_j, max_i, max_j);
         update_cost_ = false;
         posesx.clear();
         posesy.clear();
         posesz.clear();
+    }else{
+        clearArea(0, 0, getSizeInCellsX(), getSizeInCellsY(), false);
+        updateWithMax(master_grid, 0, 0, getSizeInCellsX(), getSizeInCellsY());
+        RCLCPP_INFO(node->get_logger(),"Clear");
     }
 }
 
