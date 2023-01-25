@@ -39,6 +39,11 @@ void ProxemicLayer::onInitialize()
     layered_costmap_->getCostmap()->getOriginY());
 
     proxemic_costmap_->setDefaultValue(nav2_costmap_2d::FREE_SPACE);
+
+    global_max_x = 0.5;
+    global_max_y = 0.5;
+    global_min_x = - 0.5;
+    global_min_y = -0.5;
 }
 
 void ProxemicLayer::getFrameNames()
@@ -102,10 +107,11 @@ void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_ya
 
 
     if(need_recalculation_){
-        *max_x = 0.5;
-        *max_y = 0.5;
-        *min_x = - 0.5;
-        *min_y = - 0.5;
+        
+        *max_x = global_max_x;
+        *max_y = global_max_y;
+        *min_x = global_min_x;
+        *min_y = global_min_y;
 
         RCLCPP_INFO(node->get_logger(),"Dentro bounds");
 
@@ -124,6 +130,11 @@ void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_ya
                 *min_y = posesy[i] - 1;
             }
         }
+
+        global_max_x = *max_x;
+        global_max_y = *max_y;
+        global_min_x = *min_x;
+        global_min_y = *min_y;
 
         need_recalculation_ = false;
         update_cost_ = true;
@@ -164,20 +175,49 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
             for (int j = min_j; j < max_j; j++) {
                 for (int i = min_i; i < max_i; i++) {
                     //RCLCPP_INFO(node->get_logger(),"dibujar, %d - [%d, %d]", k, i, j);
-                    unsigned char cost = LETHAL_OBSTACLE;
+                    unsigned char cost = 200;
                     setCost(i, j, cost);
                 }
             }
-            updateWithMax(master_grid, min_i, min_j, max_i, max_j);
+            updateWithTrueOverwrite(master_grid, min_i, min_j, max_i, max_j);
         }
         update_cost_ = false;
         posesx.clear();
         posesy.clear();
         posesz.clear();
+
     }else{
-        clearArea(0, 0, getSizeInCellsX(), getSizeInCellsY(), false);
-        updateWithMax(master_grid, 0, 0, getSizeInCellsX(), getSizeInCellsY());
-        RCLCPP_INFO(node->get_logger(),"Clear");
+        // int size_x = getSizeInCellsX();
+        // int size_y = getSizeInCellsY();
+        // //clearArea(0, 0, size_x, size_y, false);
+
+        // for (int j = 0; j < size_y; j++) {
+        //     for (int i = 0; i < size_x; i++) {
+        //         setCost(i, j, 0);
+        //     }
+        // }
+        // updateWithMax(master_grid, 0, 0, size_x, size_y);
+        // RCLCPP_INFO(node->get_logger(),"Clear, %d, %d", size_x, size_y);
+
+        // for (int j = 0; j < size_y; j++) {
+        //     for (int i = 0; i < size_x; i++) {
+        //         int index = getIndex(i, j);
+        //         unsigned char coste = master_grid.getCost(index);
+        //         if(coste > 0){
+        //             RCLCPP_INFO(node->get_logger(),"Coste [%d, %d]: %d", i, j, coste);
+        //         }
+        //     }
+        // }
+
+        // // //_____________________________________________________0, -0.6
+        int map_x = 0;
+        int map_y = 0;
+        worldToMapEnforceBounds(0, -0.6, map_x, map_y);
+        int index = getIndex(map_x, map_y);
+        unsigned char coste = master_grid.getCost(index);
+        RCLCPP_INFO(node->get_logger(),"Coste [%d, %d]: %d", map_x, map_y, coste);
+        // // //____________________________________________________
+
     }
 }
 
