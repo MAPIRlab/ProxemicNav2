@@ -46,36 +46,36 @@ void ProxemicLayer::onInitialize()
     global_min_y = -0.5;
 }
 
-void ProxemicLayer::getFrameNames()
-{
-    // auto frames = tf_buffer_->getAllFrameNames();
-    // for (auto tf : frames) {    
-    //     if (tf.find(tf_prefix_) != std::string::npos) {
-    //     agent_ids_.push_back(tf);
-    //     }
-    // }
-    // sort(agent_ids_.begin(), agent_ids_.end());
-    // agent_ids_.erase(unique(agent_ids_.begin(), agent_ids_.end()), agent_ids_.end());
-}
+// void ProxemicLayer::getFrameNames()
+// {
+//     // auto frames = tf_buffer_->getAllFrameNames();
+//     // for (auto tf : frames) {    
+//     //     if (tf.find(tf_prefix_) != std::string::npos) {
+//     //     agent_ids_.push_back(tf);
+//     //     }
+//     // }
+//     // sort(agent_ids_.begin(), agent_ids_.end());
+//     // agent_ids_.erase(unique(agent_ids_.begin(), agent_ids_.end()), agent_ids_.end());
+// }
 
-bool ProxemicLayer::getAgentTFs(std::vector<tf2::Transform> & agents) const
-{
-    // geometry_msgs::msg::TransformStamped global2agent;
-    // auto node = node_.lock(); //node_ (weak_ptr), node (shared_ptr)
-    // for (auto id : agent_ids_) {
-    //     try {
-    //     // Check if the transform is available
-    //     global2agent = tf_buffer_->lookupTransform(global_frame_, id, tf2::TimePointZero);
-    //     } catch (tf2::TransformException & e) {
-    //     RCLCPP_WARN(node->get_logger(), "%s", e.what());
-    //     return false;
-    //     }
-    //     tf2::Transform global2agent_tf2;
-    //     tf2::impl::Converter<true, false>::convert(global2agent.transform, global2agent_tf2);
-    //     agents.push_back(global2agent_tf2);
-    // }
-    return true;
-}
+// bool ProxemicLayer::getAgentTFs(std::vector<tf2::Transform> & agents) const
+// {
+//     // geometry_msgs::msg::TransformStamped global2agent;
+//     // auto node = node_.lock(); //node_ (weak_ptr), node (shared_ptr)
+//     // for (auto id : agent_ids_) {
+//     //     try {
+//     //     // Check if the transform is available
+//     //     global2agent = tf_buffer_->lookupTransform(global_frame_, id, tf2::TimePointZero);
+//     //     } catch (tf2::TransformException & e) {
+//     //     RCLCPP_WARN(node->get_logger(), "%s", e.what());
+//     //     return false;
+//     //     }
+//     //     tf2::Transform global2agent_tf2;
+//     //     tf2::impl::Converter<true, false>::convert(global2agent.transform, global2agent_tf2);
+//     //     agents.push_back(global2agent_tf2);
+//     // }
+//     return true;
+// }
 
 void ProxemicLayer::peopleCallBack(const geometry_msgs::msg::PoseArray msg){
 
@@ -103,8 +103,6 @@ void ProxemicLayer::peopleCallBack(const geometry_msgs::msg::PoseArray msg){
 void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, double * min_x, double * min_y, double * max_x, double * max_y){ 
     
     auto node = node_.lock();
-    //RCLCPP_INFO(node->get_logger(),"He recibido %lu poses. (bounds)",posesx.size());
-
 
     if(need_recalculation_){
         
@@ -118,16 +116,16 @@ void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_ya
         int tam = posesx.size();
         for (int i = 0; i < tam; i++){
             if(posesx[i] > *max_x){
-                *max_x = posesx[i] + 1;
+                *max_x = posesx[i] + 2;
             }
             if(posesx[i] < *min_x){
-                *min_x = posesx[i] - 1;
+                *min_x = posesx[i] - 2;
             }
             if(posesy[i] > *max_y){
-                *max_y = posesy[i] + 1;
+                *max_y = posesy[i] + 2;
             }
             if(posesy[i] < *min_y){
-                *min_y = posesy[i] - 1;
+                *min_y = posesy[i] - 2;
             }
         }
 
@@ -138,7 +136,16 @@ void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_ya
 
         need_recalculation_ = false;
         update_cost_ = true;
+
+
+    }else{
+        *min_x = -6.5;
+        *min_y = -3.5;
+        *max_x = 4;
+        *max_y = 10;
     }
+
+    
     
 }
 
@@ -148,77 +155,83 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
     if (!enabled_) {return;}
     
     auto node = node_.lock();
-    //RCLCPP_INFO(node->get_logger(),"He recibido %lu poses. (costs)",posesx.size());
 
     if(update_cost_){
 
         RCLCPP_INFO(node->get_logger(),"Dentro costs");
 
-        // std::vector<int> mapx;
-        // std::vector<int> mapy;
-
         int tam = posesx.size();
 
         for (int k = 0; k < tam; k++){
+         
+            setGaussian(master_grid, posesx[k], posesy[k], 0.0);
 
-            int map_x = 0;
-            int map_y = 0;
-
-            worldToMapEnforceBounds(posesx[k], posesy[k], map_x, map_y);
-
-            //RCLCPP_INFO(node->get_logger(),"Bucle costs, %d", k);
-            max_i = map_x + 5;
-            max_j = map_y + 5;
-            min_i = map_x - 5;
-            min_j = map_y - 5;
-
-            for (int j = min_j; j < max_j; j++) {
-                for (int i = min_i; i < max_i; i++) {
-                    //RCLCPP_INFO(node->get_logger(),"dibujar, %d - [%d, %d]", k, i, j);
-                    unsigned char cost = 200;
-                    setCost(i, j, cost);
-                }
-            }
-            updateWithTrueOverwrite(master_grid, min_i, min_j, max_i, max_j);
         }
         update_cost_ = false;
         posesx.clear();
         posesy.clear();
         posesz.clear();
-
     }else{
-        // int size_x = getSizeInCellsX();
-        // int size_y = getSizeInCellsY();
-        // //clearArea(0, 0, size_x, size_y, false);
+        int size_x = getSizeInCellsX();
+        int size_y = getSizeInCellsY();
 
-        // for (int j = 0; j < size_y; j++) {
-        //     for (int i = 0; i < size_x; i++) {
-        //         setCost(i, j, 0);
-        //     }
-        // }
-        // updateWithMax(master_grid, 0, 0, size_x, size_y);
-        // RCLCPP_INFO(node->get_logger(),"Clear, %d, %d", size_x, size_y);
-
-        // for (int j = 0; j < size_y; j++) {
-        //     for (int i = 0; i < size_x; i++) {
-        //         int index = getIndex(i, j);
-        //         unsigned char coste = master_grid.getCost(index);
-        //         if(coste > 0){
-        //             RCLCPP_INFO(node->get_logger(),"Coste [%d, %d]: %d", i, j, coste);
-        //         }
-        //     }
-        // }
-
-        // // //_____________________________________________________0, -0.6
-        int map_x = 0;
-        int map_y = 0;
-        worldToMapEnforceBounds(0, -0.6, map_x, map_y);
-        int index = getIndex(map_x, map_y);
-        unsigned char coste = master_grid.getCost(index);
-        RCLCPP_INFO(node->get_logger(),"Coste [%d, %d]: %d", map_x, map_y, coste);
-        // // //____________________________________________________
-
+        for (int j = 0; j < size_y; j++) {
+            for (int i = 0; i < size_x; i++) {
+                setCost(i, j, nav2_costmap_2d::FREE_SPACE);
+            }
+        }
+        updateWithMax(master_grid, min_i, min_j, max_i, max_j);
     }
+}
+
+void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double pose_x, double pose_y, double ori){
+    
+    //__________________________________________________________________________________DE AQUI PARA ABAJO COPIADO DE SOCIAL
+    float r = 0.5;
+    float alpha = 10 * M_PI;
+    float orientation = 0.0;
+
+    std::vector<geometry_msgs::msg::Point> points;
+    // Loop over 32 angles around a circle making a point each time
+    int N = 32;
+    int it = static_cast<int>(round((N * alpha) / (2 * M_PI)));
+    geometry_msgs::msg::Point pt;
+    for (int i = 0; i < it; ++i) {
+        double angle = i * 2 * M_PI / N + orientation;
+        pt.x = (cos(angle) * r) + pose_x;                                                       // les sumo la pose
+        pt.y = (sin(angle) * r) + pose_y;
+        points.push_back(pt);
+    }
+    if (alpha < 2 * M_PI) {
+        pt.x = 0.0;
+        pt.y = 0.0;
+        points.push_back(pt);
+    }
+    pt.x = points[0].x;
+    pt.y = points[0].y;
+    points.push_back(pt);
+    //__________________________________________________________________________________DE AQUI PARA ARRIBA COPIADO DE SOCIAL
+
+    unsigned char cost = 200;
+    
+    int map_x = 0;
+    int map_y = 0;
+
+    worldToMapEnforceBounds(pose_x, pose_y, map_x, map_y);
+    
+    int max_i = map_x + 10;
+    int max_j = map_y + 10;
+    int min_i = map_x - 10;
+    int min_j = map_y - 10;
+
+    bool success = setConvexPolygonCost(points, cost);
+    auto node = node_.lock();
+    if(!success){
+        RCLCPP_INFO(node->get_logger(),"ERROR RELLENANDO!!!");
+    }
+
+    updateWithTrueOverwrite(master_grid, min_i, min_j, max_i, max_j);
+
 }
 
 void ProxemicLayer::onFootprintChanged(){
