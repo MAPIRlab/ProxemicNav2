@@ -255,15 +255,15 @@ local_costmap:
 global_costmap:
   global_costmap:
     ros__parameters:
-      update_frequency: 10.0
-      publish_frequency: 10.0
+      update_frequency: 20.0
+      publish_frequency: 20.0
       global_frame: map
       robot_base_frame: base_link
       use_sim_time: False
       robot_radius: 0.22
       resolution: 0.05
       track_unknown_space: true
-      plugins: ["static_layer", "obstacle_layer", "proxemic_layer"] #capa proxemica
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer", "proxemic_layer"] #capa proxemica
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
