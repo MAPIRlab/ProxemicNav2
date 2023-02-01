@@ -3,6 +3,8 @@
 #include "nav2_costmap_2d/costmap_math.hpp"
 #include "nav2_costmap_2d/footprint.hpp"
 #include "rclcpp/parameter_events_filter.hpp"
+#include <rmw/qos_profiles.h>
+#include <rclcpp/qos.hpp>
 
 using nav2_costmap_2d::LETHAL_OBSTACLE;
 using nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
@@ -17,7 +19,13 @@ void ProxemicLayer::onInitialize()
 {
     auto node = node_.lock(); //node_ (weak_ptr), node (shared_ptr)
 
-    sub_ = node->create_subscription<geometry_msgs::msg::PoseArray>("/poses_topic",10,std::bind(&ProxemicLayer::peopleCallBack, this, std::placeholders::_1));
+    //sub_ = node->create_subscription<geometry_msgs::msg::PoseArray>("/poses_topic",10,std::bind(&ProxemicLayer::peopleCallBack, this, std::placeholders::_1));
+
+    auto qos_var = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_parameters);
+
+    
+
+    sub_ = node->create_subscription<geometry_msgs::msg::PoseArray>("/poses_topic",qos_var,std::bind(&ProxemicLayer::peopleCallBack, this, std::placeholders::_1));
 
     declareParameter("enabled", rclcpp::ParameterValue(true));
     node->get_parameter(name_ + "." + "enabled", enabled_);
@@ -115,36 +123,43 @@ void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_ya
     auto node = node_.lock();
 
     if(need_recalculation_){
+        //_________________________________________________________________DE AQUI PARA ABAJO BIEN, PERO NO ME DIBUJA EL "RASTRO"
+        // *max_x = global_max_x;
+        // *max_y = global_max_y;
+        // *min_x = global_min_x;
+        // *min_y = global_min_y;
 
-        *max_x = global_max_x;
-        *max_y = global_max_y;
-        *min_x = global_min_x;
-        *min_y = global_min_y;
+        // RCLCPP_INFO(node->get_logger(),"Dentro bounds");
 
-        RCLCPP_INFO(node->get_logger(),"Dentro bounds");
+        // int tam = posesx.size();
+        // for (int i = 0; i < tam; i++){
+        //     if(posesx[i] > *max_x){
+        //         *max_x = posesx[i] + 2;
+        //     }
+        //     if(posesx[i] < *min_x){
+        //         *min_x = posesx[i] - 2;
+        //     }
+        //     if(posesy[i] > *max_y){
+        //         *max_y = posesy[i] + 2;
+        //     }
+        //     if(posesy[i] < *min_y){
+        //         *min_y = posesy[i] - 2;
+        //     }
+        // }
 
-        int tam = posesx.size();
-        for (int i = 0; i < tam; i++){
-            if(posesx[i] > *max_x){
-                *max_x = posesx[i] + 2;
-            }
-            if(posesx[i] < *min_x){
-                *min_x = posesx[i] - 2;
-            }
-            if(posesy[i] > *max_y){
-                *max_y = posesy[i] + 2;
-            }
-            if(posesy[i] < *min_y){
-                *min_y = posesy[i] - 2;
-            }
-        }
+        // global_max_x = *max_x;
+        // global_max_y = *max_y;
+        // global_min_x = *min_x;
+        // global_min_y = *min_y;
+        //_________________________________________________________________DE AQUI PARA ARRIBA BIEN, PERO NO ME DIBUJA EL "RASTRO"
 
-        global_max_x = *max_x;
-        global_max_y = *max_y;
-        global_min_x = *min_x;
-        global_min_y = *min_y;
+        //____________________________________DE AQUI PARA ABAJO COJO LA VENTANA ENTERA PARA VER SI ME DIBUJA EL RASTRO
+        *min_x = -6.5;
+        *min_y = -3.5;
+        *max_x = 4;
+        *max_y = 10;
+        //____________________________________DE AQUI PARA ARRIBA COJO LA VENTANA ENTERA PARA VER SI ME DIBUJA EL RASTRO
 
-        //need_recalculation_ = false;
         update_cost_ = true;
 
 
@@ -201,8 +216,8 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
             for (int i = 0; i < size_x; i++) {
                 unsigned int index = master_grid.getIndex(i,j);
                 int cost = getCost(index);
-                if(cost > 50){
-                    setCost(i, j, getCost(index) - 10);
+                if(cost > 60){
+                    setCost(i, j, getCost(index) - 50);
                 }else{
                     setCost(i, j, nav2_costmap_2d::FREE_SPACE);
                 }
@@ -215,6 +230,9 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
 }
 
 void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double pose_x, double pose_y, double ori){
+    //______________________________________________________________________________________
+    // ----------------------------------CIRCULO--------------------------------------------
+    //______________________________________________________________________________________
 
     //__________________________________________________________________________________DE AQUI PARA ABAJO COPIADO DE SOCIAL
     float r = 0.5;
@@ -232,27 +250,17 @@ void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double
         pt.y = (sin(angle) * r) + pose_y;
         points.push_back(pt);
     }
-    // if (alpha < 2 * M_PI) {
-    //     pt.x = 0.0;
-    //     pt.y = 0.0;
-    //     points.push_back(pt);
-    // }
+
     pt.x = points[0].x;
     pt.y = points[0].y;
     points.push_back(pt);
     //__________________________________________________________________________________DE AQUI PARA ARRIBA COPIADO DE SOCIAL
 
+    //______________________________________________________________________________________
+    // ----------------------------------COSTE--------------------------------------------
+    //______________________________________________________________________________________
+    
     unsigned char cost = 200;
-
-    int map_x = 0;
-    int map_y = 0;
-
-    worldToMapEnforceBounds(pose_x, pose_y, map_x, map_y);
-
-    int max_i = map_x + (r/resolution_) + 2;
-    int max_j = map_y + (r/resolution_) + 2;
-    int min_i = map_x - (r/resolution_) - 1;
-    int min_j = map_y - (r/resolution_) - 1;
 
     bool success = setConvexPolygonCost(points, cost);
     auto node = node_.lock();
@@ -260,7 +268,36 @@ void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double
         RCLCPP_INFO(node->get_logger(),"ERROR RELLENANDO!!!");
     }
 
-    updateWithTrueOverwrite(master_grid, min_i, min_j, max_i, max_j);
+    //______________________________________________________________________________________
+    // ----------------------------------BOUNDS--------------------------------------------
+    //______________________________________________________________________________________
+
+    //_________________________________________________________________DE AQUI PARA ABAJO BIEN, PERO NO ME DIBUJA EL "RASTRO"
+    // int map_x = 0;
+    // int map_y = 0;
+
+    // worldToMapEnforceBounds(pose_x, pose_y, map_x, map_y);
+
+    // int max_i = map_x + (r/resolution_) + 2;
+    // int max_j = map_y + (r/resolution_) + 2;
+    // int min_i = map_x - (r/resolution_) - 1;
+    // int min_j = map_y - (r/resolution_) - 1;
+    //_________________________________________________________________DE AQUI PARA ARRIBA BIEN, PERO NO ME DIBUJA EL "RASTRO"
+
+
+    //____________________________________DE AQUI PARA ABAJO COJO LA VENTANA ENTERA PARA VER SI ME DIBUJA EL RASTRO
+    int map_min_i = 0;
+    int map_min_j = 0;
+    int map_max_i = 0;
+    int map_max_j = 0;
+
+    worldToMapEnforceBounds(-6.5, -3.5, map_min_i, map_min_j);
+    worldToMapEnforceBounds(4, 10, map_max_i, map_max_j);
+
+    //____________________________________DE AQUI PARA ARRIBA COJO LA VENTANA ENTERA PARA VER SI ME DIBUJA EL RASTRO
+
+    //updateWithTrueOverwrite(master_grid, map_min_i, map_min_j, map_max_i, map_max_j);
+    updateWithMax(master_grid, map_min_i, map_min_j, map_max_i, map_max_j);
 
 }
 
