@@ -19,7 +19,7 @@ void ProxemicLayer::onInitialize()
 
     sub_ = node->create_subscription<geometry_msgs::msg::PoseArray>("/poses_topic",10,std::bind(&ProxemicLayer::peopleCallBack, this, std::placeholders::_1));
 
-    declareParameter("enabled", rclcpp::ParameterValue(true));    
+    declareParameter("enabled", rclcpp::ParameterValue(true));
     node->get_parameter(name_ + "." + "enabled", enabled_);
 
     need_recalculation_ = false;
@@ -40,16 +40,20 @@ void ProxemicLayer::onInitialize()
 
     proxemic_costmap_->setDefaultValue(nav2_costmap_2d::FREE_SPACE);
 
+    RCLCPP_INFO(node->get_logger(),"resolution: %f", resolution_);
+
     global_max_x = 0.5;
     global_max_y = 0.5;
     global_min_x = - 0.5;
     global_min_y = -0.5;
+    i_max = 0;
+    nuevo = false;
 }
 
 // void ProxemicLayer::getFrameNames()
 // {
 //     // auto frames = tf_buffer_->getAllFrameNames();
-//     // for (auto tf : frames) {    
+//     // for (auto tf : frames) {
 //     //     if (tf.find(tf_prefix_) != std::string::npos) {
 //     //     agent_ids_.push_back(tf);
 //     //     }
@@ -81,7 +85,7 @@ void ProxemicLayer::peopleCallBack(const geometry_msgs::msg::PoseArray msg){
 
     auto node = node_.lock();
 
-    int i_max = msg.poses.size();
+    i_max = msg.poses.size();
 
     RCLCPP_INFO(node->get_logger(),"He recibido %d poses. (callback)",i_max);
 
@@ -96,16 +100,22 @@ void ProxemicLayer::peopleCallBack(const geometry_msgs::msg::PoseArray msg){
         //RCLCPP_INFO(node->get_logger(),"He recibido la pose: [x:%f, y:%f, o:%f]", posesx[i], posesy[i], posesz[i]);
     }
 
-    need_recalculation_ = true;
+    if(i_max > 0){
+        nuevo = true;
+    }else{
+        nuevo = false;
+    }
+
+    need_recalculation_ = false;
     update_cost_ = false;
 }
 
-void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, double * min_x, double * min_y, double * max_x, double * max_y){ 
-    
+void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, double * min_x, double * min_y, double * max_x, double * max_y){
+
     auto node = node_.lock();
 
     if(need_recalculation_){
-        
+
         *max_x = global_max_x;
         *max_y = global_max_y;
         *min_x = global_min_x;
@@ -134,7 +144,7 @@ void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_ya
         global_min_x = *min_x;
         global_min_y = *min_y;
 
-        need_recalculation_ = false;
+        //need_recalculation_ = false;
         update_cost_ = true;
 
 
@@ -143,17 +153,24 @@ void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_ya
         *min_y = -3.5;
         *max_x = 4;
         *max_y = 10;
+
+        if(nuevo){
+            need_recalculation_ = true;
+            nuevo = false;
+            update_cost_ = false;
+        }
+
     }
 
-    
-    
+
+
 }
 
 void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int min_i, int min_j, int max_i, int max_j)
 {
-    
+
     if (!enabled_) {return;}
-    
+
     auto node = node_.lock();
 
     if(update_cost_){
@@ -163,32 +180,45 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
         int tam = posesx.size();
 
         for (int k = 0; k < tam; k++){
-         
+
             setGaussian(master_grid, posesx[k], posesy[k], 0.0);
 
         }
-        update_cost_ = false;
-        posesx.clear();
-        posesy.clear();
-        posesz.clear();
+
+        if(i_max == 0){
+            update_cost_ = false;
+        }
+        need_recalculation_ = true;
+
+        // posesx.clear();
+        // posesy.clear();
+        // posesz.clear();
     }else{
         int size_x = getSizeInCellsX();
         int size_y = getSizeInCellsY();
 
         for (int j = 0; j < size_y; j++) {
             for (int i = 0; i < size_x; i++) {
-                setCost(i, j, nav2_costmap_2d::FREE_SPACE);
+                unsigned int index = master_grid.getIndex(i,j);
+                int cost = getCost(index);
+                if(cost > 50){
+                    setCost(i, j, getCost(index) - 10);
+                }else{
+                    setCost(i, j, nav2_costmap_2d::FREE_SPACE);
+                }
+
             }
         }
         updateWithMax(master_grid, min_i, min_j, max_i, max_j);
+        RCLCPP_INFO(node->get_logger(),"Borro");
     }
 }
 
 void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double pose_x, double pose_y, double ori){
-    
+
     //__________________________________________________________________________________DE AQUI PARA ABAJO COPIADO DE SOCIAL
     float r = 0.5;
-    float alpha = 10 * M_PI;
+    float alpha = 2 * M_PI;
     float orientation = 0.0;
 
     std::vector<geometry_msgs::msg::Point> points;
@@ -202,27 +232,27 @@ void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double
         pt.y = (sin(angle) * r) + pose_y;
         points.push_back(pt);
     }
-    if (alpha < 2 * M_PI) {
-        pt.x = 0.0;
-        pt.y = 0.0;
-        points.push_back(pt);
-    }
+    // if (alpha < 2 * M_PI) {
+    //     pt.x = 0.0;
+    //     pt.y = 0.0;
+    //     points.push_back(pt);
+    // }
     pt.x = points[0].x;
     pt.y = points[0].y;
     points.push_back(pt);
     //__________________________________________________________________________________DE AQUI PARA ARRIBA COPIADO DE SOCIAL
 
     unsigned char cost = 200;
-    
+
     int map_x = 0;
     int map_y = 0;
 
     worldToMapEnforceBounds(pose_x, pose_y, map_x, map_y);
-    
-    int max_i = map_x + 10;
-    int max_j = map_y + 10;
-    int min_i = map_x - 10;
-    int min_j = map_y - 10;
+
+    int max_i = map_x + (r/resolution_) + 2;
+    int max_j = map_y + (r/resolution_) + 2;
+    int min_i = map_x - (r/resolution_) - 1;
+    int min_j = map_y - (r/resolution_) - 1;
 
     bool success = setConvexPolygonCost(points, cost);
     auto node = node_.lock();

@@ -57,6 +57,8 @@ private:
   std::vector<float> posesz;
 
   double global_max_x, global_max_y, global_min_x, global_min_y;
+  int i_max;
+  bool nuevo;
 
 
   // Indicates that the entire gradient should be recalculated next time.
