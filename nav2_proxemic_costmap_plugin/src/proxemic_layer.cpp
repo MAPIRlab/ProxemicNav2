@@ -21,9 +21,7 @@ void ProxemicLayer::onInitialize()
 
     //sub_ = node->create_subscription<geometry_msgs::msg::PoseArray>("/poses_topic",10,std::bind(&ProxemicLayer::peopleCallBack, this, std::placeholders::_1));
 
-    auto qos_var = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_parameters);
-
-    
+    auto qos_var = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_default);
 
     sub_ = node->create_subscription<geometry_msgs::msg::PoseArray>("/poses_topic",qos_var,std::bind(&ProxemicLayer::peopleCallBack, this, std::placeholders::_1));
 
@@ -177,8 +175,6 @@ void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_ya
 
     }
 
-
-
 }
 
 void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int min_i, int min_j, int max_i, int max_j)
@@ -235,38 +231,57 @@ void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double
     //______________________________________________________________________________________
 
     //__________________________________________________________________________________DE AQUI PARA ABAJO COPIADO DE SOCIAL
-    float r = 0.5;
-    float alpha = 2 * M_PI;
-    float orientation = 0.0;
+    // float r = 0.5;
+    // float alpha = 2 * M_PI;
+    // float orientation = 0.0;
 
-    std::vector<geometry_msgs::msg::Point> points;
-    // Loop over 32 angles around a circle making a point each time
-    int N = 32;
-    int it = static_cast<int>(round((N * alpha) / (2 * M_PI)));
-    geometry_msgs::msg::Point pt;
-    for (int i = 0; i < it; ++i) {
-        double angle = i * 2 * M_PI / N + orientation;
-        pt.x = (cos(angle) * r) + pose_x;                                                       // les sumo la pose
-        pt.y = (sin(angle) * r) + pose_y;
-        points.push_back(pt);
-    }
+    // std::vector<geometry_msgs::msg::Point> points;
+    // // Loop over 32 angles around a circle making a point each time
+    // int N = 32;
+    // int it = static_cast<int>(round((N * alpha) / (2 * M_PI)));
+    // geometry_msgs::msg::Point pt;
+    // for (int i = 0; i < it; ++i) {
+    //     double angle = i * 2 * M_PI / N + orientation;
+    //     pt.x = (cos(angle) * r) + pose_x;                                                       // les sumo la pose
+    //     pt.y = (sin(angle) * r) + pose_y;
+    //     points.push_back(pt);
+    // }
 
-    pt.x = points[0].x;
-    pt.y = points[0].y;
-    points.push_back(pt);
+    // pt.x = points[0].x;
+    // pt.y = points[0].y;
+    // points.push_back(pt);
     //__________________________________________________________________________________DE AQUI PARA ARRIBA COPIADO DE SOCIAL
 
     //______________________________________________________________________________________
     // ----------------------------------COSTE--------------------------------------------
     //______________________________________________________________________________________
     
-    unsigned char cost = 200;
-
-    bool success = setConvexPolygonCost(points, cost);
     auto node = node_.lock();
-    if(!success){
-        RCLCPP_INFO(node->get_logger(),"ERROR RELLENANDO!!!");
+
+    int limit_min_i = 0;
+    int limit_min_j = 0;
+    int limit_max_i = 0;
+    int limit_max_j = 0;
+    int center_x = 0;
+    int center_y = 0;
+    int A = nav2_costmap_2d::LETHAL_OBSTACLE;
+    double sigx = 6;
+    double sigy = 6;
+
+    worldToMapEnforceBounds(pose_x - 0.5, pose_y - 0.5, limit_min_i, limit_min_j);
+    worldToMapEnforceBounds(pose_x + 0.5, pose_y + 0.5, limit_max_i, limit_max_j);
+    worldToMapEnforceBounds(pose_x, pose_y, center_x, center_y);
+
+    for (int j = limit_min_j; j < limit_max_j+1; j++) {
+        for (int i = limit_min_i; i < limit_max_i+1; i++) {
+            unsigned int cost = round(A*exp(-((pow((i - center_x),2)/(2*pow(sigx,2)))+(pow((j - center_y),2)/(2*pow(sigy,2))))));
+        
+            if(cost > 60){
+                setCost(i,j,cost);
+            }
+        }
     }
+
 
     //______________________________________________________________________________________
     // ----------------------------------BOUNDS--------------------------------------------
@@ -296,7 +311,6 @@ void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double
 
     //____________________________________DE AQUI PARA ARRIBA COJO LA VENTANA ENTERA PARA VER SI ME DIBUJA EL RASTRO
 
-    //updateWithTrueOverwrite(master_grid, map_min_i, map_min_j, map_max_i, map_max_j);
     updateWithMax(master_grid, map_min_i, map_min_j, map_max_i, map_max_j);
 
 }
