@@ -95,42 +95,11 @@ void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_ya
     auto node = node_.lock();
 
     if(need_recalculation_){
-        //_________________________________________________________________DE AQUI PARA ABAJO BIEN, PERO NO ME DIBUJA EL "RASTRO"
-        // *max_x = global_max_x;
-        // *max_y = global_max_y;
-        // *min_x = global_min_x;
-        // *min_y = global_min_y;
 
-        // RCLCPP_INFO(node->get_logger(),"Dentro bounds");
-
-        // int tam = posesx.size();
-        // for (int i = 0; i < tam; i++){
-        //     if(posesx[i] > *max_x){
-        //         *max_x = posesx[i] + 2;
-        //     }
-        //     if(posesx[i] < *min_x){
-        //         *min_x = posesx[i] - 2;
-        //     }
-        //     if(posesy[i] > *max_y){
-        //         *max_y = posesy[i] + 2;
-        //     }
-        //     if(posesy[i] < *min_y){
-        //         *min_y = posesy[i] - 2;
-        //     }
-        // }
-
-        // global_max_x = *max_x;
-        // global_max_y = *max_y;
-        // global_min_x = *min_x;
-        // global_min_y = *min_y;
-        //_________________________________________________________________DE AQUI PARA ARRIBA BIEN, PERO NO ME DIBUJA EL "RASTRO"
-
-        //____________________________________DE AQUI PARA ABAJO COJO LA VENTANA ENTERA PARA VER SI ME DIBUJA EL RASTRO
         *min_x = -6.5;
         *min_y = -3.5;
         *max_x = 4;
         *max_y = 10;
-        //____________________________________DE AQUI PARA ARRIBA COJO LA VENTANA ENTERA PARA VER SI ME DIBUJA EL RASTRO
 
         RCLCPP_INFO(node->get_logger(),"NEED RECALCULATION");
 
@@ -163,7 +132,7 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
 
     auto node = node_.lock();
 
-    if(update_cost_){
+    if(update_cost_){                                           // dibuja gaussiana
 
         RCLCPP_INFO(node->get_logger(),"Dentro costs");
 
@@ -180,7 +149,7 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
         }
         need_recalculation_ = true;
 
-    }else{
+    }else{                                                      // 
         int size_x = getSizeInCellsX();
         int size_y = getSizeInCellsY();
         unsigned char * master_array = master_grid.getCharMap();
@@ -206,32 +175,6 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
 }
 
 void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double pose_x, double pose_y, double ori){
-    //______________________________________________________________________________________
-    // ----------------------------------CIRCULO--------------------------------------------
-    //______________________________________________________________________________________
-
-    //__________________________________________________________________________________DE AQUI PARA ABAJO COPIADO DE SOCIAL
-    // float r = 0.5;
-    // float alpha = 2 * M_PI;
-    // float orientation = 0.0;
-
-    // std::vector<geometry_msgs::msg::Point> points;
-    // // Loop over 32 angles around a circle making a point each time
-    // int N = 32;
-    // int it = static_cast<int>(round((N * alpha) / (2 * M_PI)));
-    // geometry_msgs::msg::Point pt;
-    // for (int i = 0; i < it; ++i) {
-    //     double angle = i * 2 * M_PI / N + orientation;
-    //     pt.x = (cos(angle) * r) + pose_x;                                                       // les sumo la pose
-    //     pt.y = (sin(angle) * r) + pose_y;
-    //     points.push_back(pt);
-    // }
-
-    // pt.x = points[0].x;
-    // pt.y = points[0].y;
-    // points.push_back(pt);
-    //__________________________________________________________________________________DE AQUI PARA ARRIBA COPIADO DE SOCIAL
-
     //______________________________________________________________________________________
     // ----------------------------------COSTE--------------------------------------------
     //______________________________________________________________________________________
@@ -267,26 +210,6 @@ void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double
         }
     }
 
-    //updateWithOverwrite(master_grid, limit_min_i, limit_min_j, limit_max_i, limit_max_j);
-
-    //______________________________________________________________________________________
-    // ----------------------------------BOUNDS--------------------------------------------
-    //______________________________________________________________________________________
-
-    //_________________________________________________________________DE AQUI PARA ABAJO BIEN, PERO NO ME DIBUJA EL "RASTRO"
-    // int map_x = 0;
-    // int map_y = 0;
-
-    // worldToMapEnforceBounds(pose_x, pose_y, map_x, map_y);
-
-    // int max_i = map_x + (r/resolution_) + 2;
-    // int max_j = map_y + (r/resolution_) + 2;
-    // int min_i = map_x - (r/resolution_) - 1;
-    // int min_j = map_y - (r/resolution_) - 1;
-    //_________________________________________________________________DE AQUI PARA ARRIBA BIEN, PERO NO ME DIBUJA EL "RASTRO"
-
-
-    //____________________________________DE AQUI PARA ABAJO COJO LA VENTANA ENTERA PARA VER SI ME DIBUJA EL RASTRO
     int map_min_i = 0;
     int map_min_j = 0;
     int map_max_i = 0;
@@ -295,11 +218,7 @@ void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double
     worldToMapEnforceBounds(-6.5, -3.5, map_min_i, map_min_j);
     worldToMapEnforceBounds(4, 10, map_max_i, map_max_j);
 
-    //____________________________________DE AQUI PARA ARRIBA COJO LA VENTANA ENTERA PARA VER SI ME DIBUJA EL RASTRO
-
     updateWithMax(master_grid, map_min_i, map_min_j, map_max_i, map_max_j);
-    
-
 }
 
 void ProxemicLayer::onFootprintChanged(){
