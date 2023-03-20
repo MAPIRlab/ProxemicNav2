@@ -30,9 +30,15 @@ void ProxemicLayer::onInitialize()
     declareParameter("enabled", rclcpp::ParameterValue(true));
     node->get_parameter(name_ + "." + "enabled", enabled_);
 
-    need_recalculation_ = false;
+    declareParameter("sigx", rclcpp::ParameterValue(6.0));
+    node->get_parameter(name_ + "." + "sigx", sigx_);
+
+    declareParameter("sigy", rclcpp::ParameterValue(6.0));
+    node->get_parameter(name_ + "." + "sigy", sigy_);
+
+    need_recalculation_ = true;
     current_ = true;
-    update_cost_ = false;
+    update_cost_ = true;
 
     global_frame_ = layered_costmap_->getGlobalFrameID();
     rolling_window_ = false;
@@ -50,10 +56,6 @@ void ProxemicLayer::onInitialize()
 
     RCLCPP_INFO(node->get_logger(),"resolution: %f", resolution_);
 
-    global_max_x = 0.5;
-    global_max_y = 0.5;
-    global_min_x = - 0.5;
-    global_min_y = -0.5;
     i_max = 0;
     nuevo = false;
 }
@@ -86,8 +88,8 @@ void ProxemicLayer::peopleCallBack(const geometry_msgs::msg::PoseArray msg){
         nuevo = false;
     }
 
-    need_recalculation_ = false;
-    update_cost_ = false;
+    need_recalculation_ = true;
+    update_cost_ = true;
 }
 
 void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, double * min_x, double * min_y, double * max_x, double * max_y){
@@ -101,10 +103,11 @@ void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_ya
         *max_x = 4;
         *max_y = 10;
 
-        RCLCPP_INFO(node->get_logger(),"NEED RECALCULATION");
-
-        update_cost_ = true;
-
+        if(nuevo){
+            need_recalculation_ = false;
+            nuevo = false;
+            update_cost_ = true;
+        }
 
     }else{
         *min_x = -6.5;
@@ -112,15 +115,7 @@ void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_ya
         *max_x = 4;
         *max_y = 10;
 
-        if(nuevo){
-            need_recalculation_ = true;
-            nuevo = false;
-            update_cost_ = false;
-            RCLCPP_INFO(node->get_logger(),"en el if nuevo");
-        }
-
-        RCLCPP_INFO(node->get_logger(),"NO NEED");
-
+        update_cost_ = false;
     }
 
 }
@@ -132,24 +127,8 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
 
     auto node = node_.lock();
 
-    if(update_cost_){                                           // dibuja gaussiana
+    if(update_cost_){                                           // actualizo --> disminuyo coste del "rastro" y borro el "rastro" mas debil
 
-        RCLCPP_INFO(node->get_logger(),"Dentro costs");
-
-        int tam = posesx.size();
-
-        for (int k = 0; k < tam; k++){
-
-            setGaussian(master_grid, posesx[k], posesy[k], 0.0);
-
-        }
-
-        if(i_max == 0){
-            update_cost_ = false;
-        }
-        need_recalculation_ = true;
-
-    }else{                                                      // 
         int size_x = getSizeInCellsX();
         int size_y = getSizeInCellsY();
         unsigned char * master_array = master_grid.getCharMap();
@@ -159,8 +138,8 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
                 unsigned int index = master_grid.getIndex(i,j);
                 int cost = getCost(index);
                 if(cost > 60){
-                    setCost(i, j, cost - 40);
-                    master_array[index] = cost - 40;  // si borro esta línea, solamente borro la lectura del laser y el inflado cuando estoy en Set Gaussian, pero va mas rápido
+                    setCost(i, j, cost - 30);
+                    master_array[index] = cost - 30;  // si borro esta línea, solamente borro la lectura del laser y el inflado cuando estoy en Set Gaussian, pero va mas rápido
 
                 }else{
                     setCost(i, j, nav2_costmap_2d::FREE_SPACE);
@@ -169,8 +148,25 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
 
             }
         }
-        RCLCPP_INFO(node->get_logger(),"Borro");
         updateWithMax(master_grid, min_i, min_j, max_i, max_j);
+        RCLCPP_INFO(node->get_logger(),"Actualizo - Borro");
+
+
+    }else{                                                      // cuando no actualizo, dibujo la gaussiana en la ultima pose que recibi
+        int tam = posesx.size();
+
+        for (int k = 0; k < tam; k++){
+
+            setGaussian(master_grid, posesx[k], posesy[k], posesz[k]);
+
+        }
+
+        if(i_max == 0){
+            update_cost_ = true;
+        }
+
+        need_recalculation_ = false;
+        RCLCPP_INFO(node->get_logger(),"Última pose");
     }
 }
 
@@ -188,11 +184,14 @@ void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double
     int center_x = 0;
     int center_y = 0;
     int A = nav2_costmap_2d::LETHAL_OBSTACLE;
-    double sigx = 6;
-    double sigy = 6;
+    double sigx = sigx_;
+    double sigy = sigy_;
+    double sigu = sigx_;
+    double sigv = sigy_;
+    //ori = ori*2*M_PI;
 
-    worldToMapEnforceBounds(pose_x - 0.5, pose_y - 0.5, limit_min_i, limit_min_j);
-    worldToMapEnforceBounds(pose_x + 0.5, pose_y + 0.5, limit_max_i, limit_max_j);
+    worldToMapEnforceBounds(pose_x - 1.0, pose_y - 1.0, limit_min_i, limit_min_j);
+    worldToMapEnforceBounds(pose_x + 1.0, pose_y + 1.0, limit_max_i, limit_max_j);
     worldToMapEnforceBounds(pose_x, pose_y, center_x, center_y);
 
     unsigned char * master_array = master_grid.getCharMap();
@@ -200,10 +199,11 @@ void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double
 
     for (int j = limit_min_j; j < limit_max_j+1; j++) {
         for (int i = limit_min_i; i < limit_max_i+1; i++) {
-            unsigned int cost = round(A*exp(-((pow((i - center_x),2)/(2*pow(sigx,2)))+(pow((j - center_y),2)/(2*pow(sigy,2))))));
-            int index = master_grid.getIndex(i, j);
+            
+            unsigned int cost = round(A*exp(-((pow(((i-center_x)*cos(ori)+(j-center_y)*sin(ori)),2)/(2*pow(sigx,2)))+(pow((-(i-center_x)*sin(ori)+(j-center_y)*cos(ori)),2)/(2*pow(sigy,2))))));
 
             if(cost > 60){
+                int index = master_grid.getIndex(i, j);
                 setCost(i,j,cost);
                 master_array[index] = cost;
             }
