@@ -59,6 +59,7 @@ private:
   double global_max_x, global_max_y, global_min_x, global_min_y;
   int i_max;
   bool nuevo;
+  double sigx_, sigy_;
 
 
   // Indicates that the entire gradient should be recalculated next time.
@@ -73,9 +74,6 @@ private:
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
   geometry_msgs::msg::TransformStamped robot_to_map;
-
-  //std::vector<geometry_msgs::msg::Point> points_;
-  //std::shared_ptr<nav2_costmap_2d::Costmap2DPublisher> costmap_pub_{nullptr};
 
 };
 
