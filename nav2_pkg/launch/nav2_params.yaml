@@ -213,7 +213,7 @@ local_costmap:
       height: 3
       resolution: 0.05
       robot_radius: 0.22
-      plugins: ["voxel_layer", "inflation_layer"] #capa proxemica
+      plugins: ["voxel_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
@@ -261,7 +261,7 @@ global_costmap:
       robot_base_frame: base_link
       use_sim_time: False
       robot_radius: 0.22
-      resolution: 0.05
+      resolution: 0.02
       track_unknown_space: true
       plugins: ["static_layer", "obstacle_layer", "inflation_layer", "proxemic_layer"] #capa proxemica
       obstacle_layer:
@@ -288,6 +288,8 @@ global_costmap:
       proxemic_layer:                               #----- especifico el plugin
         plugin: nav2_proxemic_costmap_plugin/ProxemicLayer
         enabled: True
+        sigx: 8.0
+        sigy: 5.0
       always_send_full_costmap: True
       transform_tolerance: 0.5
   global_costmap_client:
