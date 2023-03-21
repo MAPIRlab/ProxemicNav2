@@ -290,6 +290,8 @@ global_costmap:
         enabled: True
         sigx: 8.0
         sigy: 5.0
+        debug_info: True
+        poses_topic_name: "/poses_topic"
       always_send_full_costmap: True
       transform_tolerance: 0.5
   global_costmap_client:
