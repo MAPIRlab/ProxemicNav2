@@ -1,0 +1,35 @@
+This Costmap2D plugin associates a gaussian parametrized cost to people poses. These poses are received through a topic as a PoseArray message and added to the final navigation costmap as proxemic zones.
+
+The written plugin inherits their methods from CostmapLayer class. These methods are called by LayeredCostmap (plugin handling module) in runtime, integrating this Proxemic Layer with the rest of costmap layers (static layer, obstacle layer, inflation layer…).
+
+To add this plugin to your navigation stack:
+- Copy this package into your workspace
+- Add “proxemic_layer” at the end of plugins list in global costmap parameters (your .yaml file).
+- Specify plugin as follows:
+
+     proxemic_layer:                           	
+    	plugin: nav2_proxemic_costmap_plugin/ProxemicLayer
+    	enabled: True
+    	sigx: 6.0
+    	sigy: 6.0
+    	debug_info: True
+    	poses_topic_name: "/poses_topic"
+
+# Input
+People poses. Position and orientation of each person with “map” as a reference frame.
+
+Type of msg: PoseArray
+Topic name (default):  “/poses_topic”
+QoS profile: KEEP_LAST (history), RELIABLE (reliability), VOLATILE (durability)
+
+# Parameters
+enabled [bool]: layer enabled when set to true (default to True)
+
+sigx [double]: gaussian standard deviation in people orientation’s direction ¿? (default to 6.0)
+
+sigy [double]: gaussian standard deviation perpendicular to people orientation’s direction ¿? (default to 6.0)
+
+debug_info [bool]: debug info will be shown when set to true (default to True)
+
+poses_topic_name [string]: subscribed topic name (default to “/poses_topic”)
+

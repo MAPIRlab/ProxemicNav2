@@ -30,51 +30,37 @@ public:
 
   virtual void onInitialize();
 
-  virtual void updateBounds(double robot_x, double robot_y, double robot_yaw, double * min_x, double * min_y, double * max_x, double * max_y);
-
   void peopleCallBack(const geometry_msgs::msg::PoseArray msg);
+
+  virtual void updateBounds(double robot_x, double robot_y, double robot_yaw, double * min_x, double * min_y, double * max_x, double * max_y);
 
   virtual void updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int min_i, int min_j, int max_i, int max_j);
 
   virtual void setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double pose_x, double pose_y, double ori);
 
+
   virtual void onFootprintChanged();
-
   virtual void reset();
-
   virtual bool isClearable();
 
 private:
 
   rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr sub_;
   
-  double last_min_x_, last_min_y_, last_max_x_, last_max_y_;
+  std::vector<float> posesx, posesy, posesz;
 
-  bool update_cost_;
+  double global_max_x, global_max_y, global_min_x, global_min_y; // map's size in meters
+  int i_max; // number of received poses
+  bool nuevo; // any new pose received ?
+  double sigx_, sigy_; // sigmas for gaussian cost
 
-  std::vector<float> posesx;
-  std::vector<float> posesy;
-  std::vector<float> posesz;
+  bool debug_info_;
 
-  double global_max_x, global_max_y, global_min_x, global_min_y;
-  int i_max;
-  bool nuevo;
-  double sigx_, sigy_;
+  bool need_recalculation_; // chooses proceidure of updateBounds function
+  bool update_cost_; // chooses proceidure of updateCosts function
+  std::string poses_topic_name_;
 
-
-  // Indicates that the entire gradient should be recalculated next time.
-  bool need_recalculation_;
-
-  bool rolling_window_;
-
-  std::string global_frame_;  ///< @brief The global frame for the costmap
   std::shared_ptr<nav2_costmap_2d::Costmap2D> proxemic_costmap_;
-
-  geometry_msgs::msg::Pose new_pose;
-  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
-  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
-  geometry_msgs::msg::TransformStamped robot_to_map;
-
 };
 
 }  // namespace nav2_proxemic_costmap_plugin

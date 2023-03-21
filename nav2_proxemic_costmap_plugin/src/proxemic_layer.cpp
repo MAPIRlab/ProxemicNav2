@@ -5,10 +5,6 @@
 #include "rclcpp/parameter_events_filter.hpp"
 #include <rmw/qos_profiles.h>
 #include <rclcpp/qos.hpp>
-#include <tf2_ros/transform_listener.h>
-#include "geometry_msgs/msg/transform_stamped.hpp"
-#include <tf2_ros/buffer.h>
-
 
 using nav2_costmap_2d::LETHAL_OBSTACLE;
 using nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
@@ -23,9 +19,7 @@ void ProxemicLayer::onInitialize()
 {
     auto node = node_.lock(); //node_ (weak_ptr), node (shared_ptr)
 
-    auto qos_var = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_default);
-
-    sub_ = node->create_subscription<geometry_msgs::msg::PoseArray>("/poses_topic",qos_var,std::bind(&ProxemicLayer::peopleCallBack, this, std::placeholders::_1));
+    // PARAMETERS AND INTERNAL VARIABLES:
 
     declareParameter("enabled", rclcpp::ParameterValue(true));
     node->get_parameter(name_ + "." + "enabled", enabled_);
@@ -36,12 +30,31 @@ void ProxemicLayer::onInitialize()
     declareParameter("sigy", rclcpp::ParameterValue(6.0));
     node->get_parameter(name_ + "." + "sigy", sigy_);
 
+    declareParameter("debug_info", rclcpp::ParameterValue(true));
+    node->get_parameter(name_ + "." + "debug_info", debug_info_);
+
+    declareParameter("poses_topic_name", rclcpp::ParameterValue("/poses_topic"));
+    node->get_parameter(name_ + "." + "poses_topic_name", poses_topic_name_);
+
     need_recalculation_ = true;
     current_ = true;
     update_cost_ = true;
 
-    global_frame_ = layered_costmap_->getGlobalFrameID();
-    rolling_window_ = false;
+    i_max = 0;
+    nuevo = false;
+
+    auto qos_var = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_default); // quality of service profile, for subscription
+
+    sub_ = node->create_subscription<geometry_msgs::msg::PoseArray>(poses_topic_name_,qos_var,std::bind(&ProxemicLayer::peopleCallBack, this, std::placeholders::_1));
+
+
+    // map's size in meters
+    global_min_x = -6.5;
+    global_min_y = -3.5;
+    global_max_x = 4;
+    global_max_y = 10;
+
+    // Copies characteristics of master layer into my layer: size, resolution, origin
 
     ProxemicLayer::matchSize();
 
@@ -54,10 +67,6 @@ void ProxemicLayer::onInitialize()
 
     proxemic_costmap_->setDefaultValue(nav2_costmap_2d::FREE_SPACE);
 
-    RCLCPP_INFO(node->get_logger(),"resolution: %f", resolution_);
-
-    i_max = 0;
-    nuevo = false;
 }
 
 void ProxemicLayer::peopleCallBack(const geometry_msgs::msg::PoseArray msg){
@@ -66,8 +75,10 @@ void ProxemicLayer::peopleCallBack(const geometry_msgs::msg::PoseArray msg){
 
     i_max = msg.poses.size();
 
-    RCLCPP_INFO(node->get_logger(),"He recibido %d poses. (callback)",i_max);
-
+    if (debug_info_){
+        RCLCPP_INFO(node->get_logger(),"%d poses received. (callback)",i_max);
+    }
+    
     posesx.clear();
     posesy.clear();
     posesz.clear();
@@ -78,7 +89,9 @@ void ProxemicLayer::peopleCallBack(const geometry_msgs::msg::PoseArray msg){
         posesy.push_back(msg.poses[i].position.y);
         posesz.push_back(msg.poses[i].orientation.z);
 
-        RCLCPP_INFO(node->get_logger(),"He recibido la pose: [x:%f, y:%f, o:%f]", posesx[i], posesy[i], posesz[i]);
+        if (debug_info_){
+            RCLCPP_INFO(node->get_logger(),"The following pose was received: [x:%f, y:%f, o:%f]", posesx[i], posesy[i], posesz[i]);
+        }
     }
 
     if(i_max > 0){
@@ -96,24 +109,24 @@ void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_ya
 
     auto node = node_.lock();
 
-    if(need_recalculation_){
+    if(need_recalculation_){    // we set as recalculation bounds the entire map's size (so we are able to erase old poses wherever they are)
 
-        *min_x = -6.5;
-        *min_y = -3.5;
-        *max_x = 4;
-        *max_y = 10;
+        *min_x = global_min_x;
+        *min_y = global_min_y;
+        *max_x = global_max_x;
+        *max_y = global_max_y;
 
-        if(nuevo){
+        if(nuevo){              
             need_recalculation_ = false;
             nuevo = false;
             update_cost_ = true;
         }
 
-    }else{
-        *min_x = -6.5;
-        *min_y = -3.5;
-        *max_x = 4;
-        *max_y = 10;
+    }else{                      // we set as recalculation bounds the entire map's size (to set gaussian cost wherever the poses are)
+        *min_x = global_min_x;
+        *min_y = global_min_y;
+        *max_x = global_max_x;
+        *max_y = global_max_y;
 
         update_cost_ = false;
     }
@@ -126,8 +139,8 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
     if (!enabled_) {return;}
 
     auto node = node_.lock();
-
-    if(update_cost_){                                           // actualizo --> disminuyo coste del "rastro" y borro el "rastro" mas debil
+                                                                
+    if(update_cost_){                                           // update --> decreases the cost of the "trail" and erases the weakest part
 
         int size_x = getSizeInCellsX();
         int size_y = getSizeInCellsY();
@@ -138,8 +151,8 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
                 unsigned int index = master_grid.getIndex(i,j);
                 int cost = getCost(index);
                 if(cost > 60){
-                    setCost(i, j, cost - 30);
-                    master_array[index] = cost - 30;  // si borro esta línea, solamente borro la lectura del laser y el inflado cuando estoy en Set Gaussian, pero va mas rápido
+                    setCost(i, j, cost - 30);               // we update the cost in proxemic layer AND in master layer
+                    master_array[index] = cost - 30;
 
                 }else{
                     setCost(i, j, nav2_costmap_2d::FREE_SPACE);
@@ -149,15 +162,18 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
             }
         }
         updateWithMax(master_grid, min_i, min_j, max_i, max_j);
-        RCLCPP_INFO(node->get_logger(),"Actualizo - Borro");
+
+        if (debug_info_){
+            RCLCPP_INFO(node->get_logger(),"Updating proxemic layer");
+        }
 
 
-    }else{                                                      // cuando no actualizo, dibujo la gaussiana en la ultima pose que recibi
+    }else{                                                      // when not updating, we set the gaussian in the last poses received
         int tam = posesx.size();
 
         for (int k = 0; k < tam; k++){
 
-            setGaussian(master_grid, posesx[k], posesy[k], posesz[k]);
+            setGaussian(master_grid, posesx[k], posesy[k], posesz[k]);  // calling the function for each pose
 
         }
 
@@ -166,17 +182,20 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
         }
 
         need_recalculation_ = false;
-        RCLCPP_INFO(node->get_logger(),"Última pose");
+
+        if (debug_info_){
+            RCLCPP_INFO(node->get_logger(),"Setting gaussian of last poses received");
+        }
     }
 }
 
 void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double pose_x, double pose_y, double ori){
-    //______________________________________________________________________________________
-    // ----------------------------------COSTE--------------------------------------------
-    //______________________________________________________________________________________
+    
+    // SETTING GAUSSIAN COST
     
     auto node = node_.lock();
 
+    // internal variables initialization 
     int limit_min_i = 0;
     int limit_min_j = 0;
     int limit_max_i = 0;
@@ -186,23 +205,23 @@ void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double
     int A = nav2_costmap_2d::LETHAL_OBSTACLE;
     double sigx = sigx_;
     double sigy = sigy_;
-    double sigu = sigx_;
-    double sigv = sigy_;
     //ori = ori*2*M_PI;
 
-    worldToMapEnforceBounds(pose_x - 1.0, pose_y - 1.0, limit_min_i, limit_min_j);
-    worldToMapEnforceBounds(pose_x + 1.0, pose_y + 1.0, limit_max_i, limit_max_j);
-    worldToMapEnforceBounds(pose_x, pose_y, center_x, center_y);
+    // we go over every cell in the grid in a 2 meters "radio" around the received pose, to set the gaussian cost:
+
+    worldToMapEnforceBounds(pose_x - 1.0, pose_y - 1.0, limit_min_i, limit_min_j);  // min limits -> from meters to cells
+    worldToMapEnforceBounds(pose_x + 1.0, pose_y + 1.0, limit_max_i, limit_max_j);  // max limits -> from meters to cells
+    worldToMapEnforceBounds(pose_x, pose_y, center_x, center_y); // pose coordinates -> from meters to cells
 
     unsigned char * master_array = master_grid.getCharMap();
-
 
     for (int j = limit_min_j; j < limit_max_j+1; j++) {
         for (int i = limit_min_i; i < limit_max_i+1; i++) {
             
+            // function for rotated gaussian:
             unsigned int cost = round(A*exp(-((pow(((i-center_x)*cos(ori)+(j-center_y)*sin(ori)),2)/(2*pow(sigx,2)))+(pow((-(i-center_x)*sin(ori)+(j-center_y)*cos(ori)),2)/(2*pow(sigy,2))))));
 
-            if(cost > 60){
+            if(cost > 60){ // if it is "significant", we set the cost (in proxemic layer AND in master)
                 int index = master_grid.getIndex(i, j);
                 setCost(i,j,cost);
                 master_array[index] = cost;
@@ -210,21 +229,21 @@ void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double
         }
     }
 
+    // map's size -> from meters to cells 
+
     int map_min_i = 0;
     int map_min_j = 0;
     int map_max_i = 0;
     int map_max_j = 0;
 
-    worldToMapEnforceBounds(-6.5, -3.5, map_min_i, map_min_j);
-    worldToMapEnforceBounds(4, 10, map_max_i, map_max_j);
+    worldToMapEnforceBounds(global_min_x, global_min_y, map_min_i, map_min_j);
+    worldToMapEnforceBounds(global_max_x, global_max_y, map_max_i, map_max_j);
 
-    updateWithMax(master_grid, map_min_i, map_min_j, map_max_i, map_max_j);
+    updateWithMax(master_grid, map_min_i, map_min_j, map_max_i, map_max_j); // we update cost in the whole map
 }
 
-void ProxemicLayer::onFootprintChanged(){
-//     need_recalculation_ = true;
-//     RCLCPP_DEBUG(rclcpp::get_logger("nav2_costmap_2d"), "ProxemicLayer::onFootprintChanged(): num footprint points: %lu",layered_costmap_->getFootprint().size());
-}
+// these functions are needed because "LayeredCostmap" calls them
+void ProxemicLayer::onFootprintChanged(){}
 
 void ProxemicLayer::reset() {}
 
