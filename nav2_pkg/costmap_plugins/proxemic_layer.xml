@@ -1,5 +1,0 @@
-<library path="nav2_proxemic_costmap_plugin_core">
-  <class name="nav2_proxemic_costmap_plugin/ProxemicLayer" type="nav2_proxemic_costmap_plugin::ProxemicLayer" base_class_type="nav2_costmap_2d::CostmapLayer">
-    <description>Primera prueba creando un plugin</description>
-  </class>
-</library>
