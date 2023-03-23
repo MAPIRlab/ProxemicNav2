@@ -52,7 +52,9 @@ private:
   double global_max_x, global_max_y, global_min_x, global_min_y; // map's size in meters
   int i_max; // number of received poses
   bool nuevo; // any new pose received ?
+  bool first_time;
   double sigx_, sigy_; // sigmas for gaussian cost
+  double robot_x_, robot_y_;
 
   bool debug_info_;
 

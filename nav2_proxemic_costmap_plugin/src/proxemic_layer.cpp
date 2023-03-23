@@ -5,6 +5,7 @@
 #include "rclcpp/parameter_events_filter.hpp"
 #include <rmw/qos_profiles.h>
 #include <rclcpp/qos.hpp>
+#include <tf2/LinearMath/Quaternion.h>
 
 using nav2_costmap_2d::LETHAL_OBSTACLE;
 using nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
@@ -47,13 +48,6 @@ void ProxemicLayer::onInitialize()
 
     sub_ = node->create_subscription<geometry_msgs::msg::PoseArray>(poses_topic_name_,qos_var,std::bind(&ProxemicLayer::peopleCallBack, this, std::placeholders::_1));
 
-
-    // map's size in meters
-    global_min_x = -6.5;
-    global_min_y = -3.5;
-    global_max_x = 4;
-    global_max_y = 10;
-
     // Copies characteristics of master layer into my layer: size, resolution, origin
 
     ProxemicLayer::matchSize();
@@ -66,7 +60,6 @@ void ProxemicLayer::onInitialize()
     layered_costmap_->getCostmap()->getOriginY());
 
     proxemic_costmap_->setDefaultValue(nav2_costmap_2d::FREE_SPACE);
-
 }
 
 void ProxemicLayer::peopleCallBack(const geometry_msgs::msg::PoseArray msg){
@@ -87,7 +80,15 @@ void ProxemicLayer::peopleCallBack(const geometry_msgs::msg::PoseArray msg){
 
         posesx.push_back(msg.poses[i].position.x);
         posesy.push_back(msg.poses[i].position.y);
-        posesz.push_back(msg.poses[i].orientation.z);
+
+        // quaternion to euler
+        tf2::Quaternion ori_q = tf2::Quaternion(msg.poses[i].orientation.x, msg.poses[i].orientation.y, msg.poses[i].orientation.z, msg.poses[i].orientation.w);
+        auto ori_eu = ori_q.getAngle();
+        if(msg.poses[i].orientation.z < 0){
+            ori_eu = ori_eu*(-1);
+        }
+
+        posesz.push_back(ori_eu);
 
         if (debug_info_){
             RCLCPP_INFO(node->get_logger(),"The following pose was received: [x:%f, y:%f, o:%f]", posesx[i], posesy[i], posesz[i]);
@@ -109,10 +110,22 @@ void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_ya
 
     auto node = node_.lock();
 
-    if(need_recalculation_){    // we set as recalculation bounds the entire map's size (so we are able to erase old poses wherever they are)
+    // we get map's size in meters
+    global_min_x = getOriginX();
+    global_min_y = getOriginY();
+
+    global_max_x = getSizeInCellsX()*getResolution()+global_min_x;
+    global_max_y = getSizeInCellsY()*getResolution()+global_min_y;
+
+    // we save the pose so we can use in gaussian function
+    robot_x_ = robot_x;
+    robot_y_ = robot_y;
+
+
+    if(need_recalculation_){    // we set as recalculation bounds the entire map's size (so we are able to upload the map with other layers information)
 
         *min_x = global_min_x;
-        *min_y = global_min_y;
+        *min_y =  global_min_y;
         *max_x = global_max_x;
         *max_y = global_max_y;
 
@@ -122,11 +135,25 @@ void ProxemicLayer::updateBounds(double robot_x, double robot_y, double robot_ya
             update_cost_ = true;
         }
 
-    }else{                      // we set as recalculation bounds the entire map's size (to set gaussian cost wherever the poses are)
-        *min_x = global_min_x;
-        *min_y = global_min_y;
-        *max_x = global_max_x;
-        *max_y = global_max_y;
+    }else{                      // we set as recalculation bounds only a certain area around the robot's pose
+    
+        *min_x = robot_x - 3.0;
+        *min_y = robot_y - 3.0;
+        *max_x = robot_x + 3.0;
+        *max_y = robot_y + 3.0;
+
+        if(*min_x < global_min_x){
+            *min_x = global_min_x;
+        }
+        if(*min_y < global_min_y){
+            *min_y = global_min_y;
+        }
+        if(*max_x > global_max_x){
+            *max_x = global_max_x;
+        }
+        if(*max_y > global_max_y){
+            *max_y = global_max_y;
+        }
 
         update_cost_ = false;
     }
@@ -142,12 +169,36 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
                                                                 
     if(update_cost_){                                           // update --> decreases the cost of the "trail" and erases the weakest part
 
-        int size_x = getSizeInCellsX();
-        int size_y = getSizeInCellsY();
+        int map_min_i = 0;
+        int map_min_j = 0;
+        int map_max_i = 0;
+        int map_max_j = 0;
+
+        double min_x = robot_x_ - 3.0;
+        double min_y = robot_y_ - 3.0;
+        double max_x = robot_x_ + 3.0;
+        double max_y = robot_y_ + 3.0;
+
+        if(min_x < global_min_x){
+            min_x = global_min_x;
+        }
+        if(min_y < global_min_y){
+            min_y = global_min_y;
+        }
+        if(max_x > global_max_x){
+            max_x = global_max_x;
+        }
+        if(max_y > global_max_y){
+            max_y = global_max_y;
+        }
+
+    worldToMapEnforceBounds(min_x, min_y, map_min_i, map_min_j);
+    worldToMapEnforceBounds(max_x, max_y, map_max_i, map_max_j);
+
         unsigned char * master_array = master_grid.getCharMap();
 
-        for (int j = 0; j < size_y; j++) {
-            for (int i = 0; i < size_x; i++) {
+        for (int j = map_min_j; j < map_max_j; j++) {
+            for (int i = map_min_i; i < map_max_i; i++) {
                 unsigned int index = master_grid.getIndex(i,j);
                 int cost = getCost(index);
                 if(cost > 60){
@@ -161,7 +212,7 @@ void ProxemicLayer::updateCosts(nav2_costmap_2d::Costmap2D & master_grid, int mi
 
             }
         }
-        updateWithMax(master_grid, min_i, min_j, max_i, max_j);
+        updateWithMax(master_grid, map_min_i, map_min_j, map_max_i, map_max_j);
 
         if (debug_info_){
             RCLCPP_INFO(node->get_logger(),"Updating proxemic layer");
@@ -195,7 +246,35 @@ void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double
     
     auto node = node_.lock();
 
-    // internal variables initialization 
+    // update limits (6 meters radius)
+
+    int map_min_i = 0;
+    int map_min_j = 0;
+    int map_max_i = 0;
+    int map_max_j = 0;
+
+    double min_x = robot_x_ - 3.0;
+    double min_y = robot_y_ - 3.0;
+    double max_x = robot_x_ + 3.0;
+    double max_y = robot_y_ + 3.0;
+
+    if(min_x < global_min_x){
+        min_x = global_min_x;
+    }
+    if(min_y < global_min_y){
+        min_y = global_min_y;
+    }
+    if(max_x > global_max_x){
+        max_x = global_max_x;
+    }
+    if(max_y > global_max_y){
+        max_y = global_max_y;
+    }
+
+    worldToMapEnforceBounds(min_x, min_y, map_min_i, map_min_j);
+    worldToMapEnforceBounds(max_x, max_y, map_max_i, map_max_j);
+
+    // gaussian limits
     int limit_min_i = 0;
     int limit_min_j = 0;
     int limit_max_i = 0;
@@ -205,9 +284,8 @@ void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double
     int A = nav2_costmap_2d::LETHAL_OBSTACLE;
     double sigx = sigx_;
     double sigy = sigy_;
-    //ori = ori*2*M_PI;
 
-    // we go over every cell in the grid in a 2 meters "radio" around the received pose, to set the gaussian cost:
+    // we go over every cell in the grid in a 2 meters "radius" around the received pose, to set the gaussian cost:
 
     worldToMapEnforceBounds(pose_x - 1.0, pose_y - 1.0, limit_min_i, limit_min_j);  // min limits -> from meters to cells
     worldToMapEnforceBounds(pose_x + 1.0, pose_y + 1.0, limit_max_i, limit_max_j);  // max limits -> from meters to cells
@@ -221,7 +299,7 @@ void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double
             // function for rotated gaussian:
             unsigned int cost = round(A*exp(-((pow(((i-center_x)*cos(ori)+(j-center_y)*sin(ori)),2)/(2*pow(sigx,2)))+(pow((-(i-center_x)*sin(ori)+(j-center_y)*cos(ori)),2)/(2*pow(sigy,2))))));
 
-            if(cost > 60){ // if it is "significant", we set the cost (in proxemic layer AND in master)
+            if(cost > 60 && (i>map_min_i) && (i<map_max_i) && (j>map_min_j) && (j<map_max_j)){ // if it is "significant", we set the cost (in proxemic layer AND in master)
                 int index = master_grid.getIndex(i, j);
                 setCost(i,j,cost);
                 master_array[index] = cost;
@@ -229,17 +307,7 @@ void ProxemicLayer::setGaussian(nav2_costmap_2d::Costmap2D & master_grid, double
         }
     }
 
-    // map's size -> from meters to cells 
-
-    int map_min_i = 0;
-    int map_min_j = 0;
-    int map_max_i = 0;
-    int map_max_j = 0;
-
-    worldToMapEnforceBounds(global_min_x, global_min_y, map_min_i, map_min_j);
-    worldToMapEnforceBounds(global_max_x, global_max_y, map_max_i, map_max_j);
-
-    updateWithMax(master_grid, map_min_i, map_min_j, map_max_i, map_max_j); // we update cost in the whole map
+    updateWithMax(master_grid, map_min_i, map_min_j, map_max_i, map_max_j); // we update cost in the 6 meters radius
 }
 
 // these functions are needed because "LayeredCostmap" calls them

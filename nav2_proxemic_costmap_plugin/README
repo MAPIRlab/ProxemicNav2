@@ -1,4 +1,4 @@
-This Costmap2D plugin associates a gaussian parametrized cost to people poses. These poses are received through a topic as a PoseArray message and added to the final navigation costmap as proxemic zones.
+This Costmap2D plugin associates a parametrized gaussian cost to people poses. These poses are received through a topic as a PoseArray message and added to the final navigation costmap as proxemic zones.
 
 The written plugin inherits their methods from CostmapLayer class. These methods are called by LayeredCostmap (plugin handling module) in runtime, integrating this Proxemic Layer with the rest of costmap layers (static layer, obstacle layer, inflation layer…).
 
@@ -25,9 +25,9 @@ QoS profile: KEEP_LAST (history), RELIABLE (reliability), VOLATILE (durability)
 # Parameters
 enabled [bool]: layer enabled when set to true (default to True)
 
-sigx [double]: gaussian standard deviation in people orientation’s direction ¿? (default to 6.0)
+sigx [double]: gaussian standard deviation in people orientation’s direction (default to 6.0)
 
-sigy [double]: gaussian standard deviation perpendicular to people orientation’s direction ¿? (default to 6.0)
+sigy [double]: gaussian standard deviation perpendicular to people orientation’s direction (default to 6.0)
 
 debug_info [bool]: debug info will be shown when set to true (default to True)
 
