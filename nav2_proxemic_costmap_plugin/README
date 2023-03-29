@@ -33,3 +33,9 @@ debug_info [bool]: debug info will be shown when set to true (default to True)
 
 poses_topic_name [string]: subscribed topic name (default to “/poses_topic”)
 
+# Prerequisites
+- “nav2_pkg” package
+- “nav2_proxemic_costmap_plugin” package
+- complete “navigation 2” ros2 navigation stack (Nav2 binaries).
+
+
