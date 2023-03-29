@@ -1,0 +1,47 @@
+/**:
+    ros__parameters:
+        DebugInfo:
+            debug_info : True # visualize debug info when set to true
+
+        FrecInference:
+            high_frec : 10
+            low_frec : 5
+            off_frec : 0
+
+        HumanDetected:
+            threshold_human : 0.4   # below this certainty, detected humans won't be published as humans
+            single_human : False
+            compute_body : False
+
+        ImageParameters:
+            factor : 0.2    # new dimensions are old ones by the factor (to reduce size, factor < 1)
+                    
+        ROSTopics:
+            rgb_cam_topic : camera/color/image_raw      # publish from camera to 'camera_basic' node
+            depth_cloud_topic : camera/depth/points     # publish from camera to 'camera_basic' node 
+            
+            image_topic : openpose/usb_cam/image_dim    # publish from 'camera_basic' node to 'openpose_new' node
+            cloud_topic: cloud_topic                    # publish from 'camera_basic' node to 'proc_depth_node' node
+            
+            humans_topic: openpose/humans               # publish from 'openpose_new' node to 'proc_human_node' node
+            
+            humans_3d_topic : openpose/users_3d         # publish from 'proc_human_node' node to 'proc_depth_node' node
+            video_humans_drawn_topic : openpose/frame_humans/draw_img # output published by 'proc_human_node' node
+            
+            poses_topic: poses_topic                    # output published by 'proc_depth_node' node
+            users_3d_topic : users3D                    # output published by 'proc_depth_node' node
+                                  
+        ROSServices:
+            start_detection_srv: openpose/start_detection_humans_service
+            change_frec_srv: openpose/change_frec
+            
+        CameraToBaseLinkTF:
+            translation_x : 0.15
+            translation_y : 0.0
+            translation_z : 1.0
+            angle_x : 0.0
+            angle_y : 0.0
+            angle_z : 0.0
+            general_camera_frame: camera_link
+            depth_cloud_frame: camera_color_optical_frame
+            
