@@ -1,0 +1,28 @@
+This project adds proxemic zones to navigation global costmap and provides information about detected people. The system is divided into two parts; people detection (using a NN for body parts identification, working with an RGBD camera) and a proxemic layer plugin (integrated into ROS2 navigation stack).
+
+Both parts can be independent of each other, being possible to use people detection information for another purpose, or to simulate people poses to visualize and integrate them into the costmap.
+
+#People Detection
+Package: openpose_pkg
+
+Input: It is subscribed to camera RGB frames and camera depth points.
+Due to considering people poses with “map” as reference frame, it is necessary to provide “map” to “base_link” transform.
+Do not forget to fill the configuration file with your specific parameters, specially “CameraToBaseLinkTF” parameters. Configuration file: ‘config/openpose.yaml’.
+You will also need to clone “openpose_interfaces” package for the correct operation of “openpose_pkg”.
+
+Output: It publishes a poses array, specifying one pose for each detected person. It also publishes a users array, which includes information such as certainty (reliability of the user search).
+It is also possible to visualize a drawn image, as an RGB image with the detected skeleton parts superimposed on it .
+
+For more information read the openpose_pkg README.
+
+#Layer Plugin
+Package: nav2_proxemic_costmap_plugin
+
+It is necessary to specify plugin into nav2 configuration file ‘nav2_pkg/launch/nav2_params.yaml’. If you are not in simulation mode and you intend for the detection to be carried out by openpose package, you need to specify the same “poses_topic_name” param as in “openpose.yaml” file. Otherwise, you will need to match this parameter with your simulation’s output.
+
+As a recommendation, use RViz tool to visualize the proxemic zones within the global costmap. For this, you only need to subscribe to usual global costmap messages with the following QoS:
+	History Policy: KEEP LAST
+	Reliability Policy: RELIABLE
+	Durability Policy: VOLATILE
+
+For more information read the nav2_proxemic_costmap_plugin README.
