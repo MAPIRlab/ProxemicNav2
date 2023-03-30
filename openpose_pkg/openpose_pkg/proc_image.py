@@ -162,7 +162,7 @@ class HumanImage():
             center = self.parts_coords[part_idx]
             if self._detect_links:
                 centers[part_idx] = (center)
-            cv2.circle(image_drawn, center, 3, CocoColors[part_idx], thickness=2, lineType=8, shift=0)
+            cv2.circle(image_drawn, center, 1, CocoColors[part_idx], thickness=1, lineType=2, shift=0)
            
         # draw line
         if self._detect_links:
@@ -192,14 +192,14 @@ class HumanImage():
             (255, 255, 255), -1 )'''
             cv2.putText(image_drawn, 'Human #'+self.user_msg.name, \
                 (self._min_rect[0], self._min_rect[2]+self._min_rect[3]), font, \
-                1, (255, 255, 255), 1, cv2.LINE_AA)
+                0.8, (255, 255, 255), 1, cv2.LINE_AA)
 
             '''cv2.rectangle(image_drawn, (self._min_rect[0], self._min_rect[2]+15), \
             (self._min_rect[0] + 20, self._min_rect[2] + 25),
             (255, 255, 255), -1 )'''
             cv2.putText(image_drawn, 'Certainty: '+str(format(self._certainty, '.4f')), \
                 (self._min_rect[0] , self._min_rect[2]+ self._min_rect[3]+15), font, \
-                1,(255, 255, 255),  1, cv2.LINE_AA)
+                0.8,(255, 255, 255),  1, cv2.LINE_AA)
         return image_drawn         
 
 class HumanImageSet():
