@@ -2,33 +2,39 @@ This ROS2 package integrates a human pose estimation system based on body parts 
 
 # Input
     - RGB frames and 3D point cloud (both must be from the same RGBD camera).
-	    RGB frames:
-            Type of msg: Image
-            Topic name (default):  “/camera/color/image_raw”
-            QoS profile: KEEP_LAST (history), BEST_EFFORT (reliability)
-	    Depth points:
-            Type of msg: PointCloud2
-            Topic name (default): “/camera/depth/points”
-            QoS profile: KEEP_LAST (history), BEST_EFFORT (reliability)
+	    --RGB frames:{
+            	Type of msg: Image
+            	Topic name (default):  “/camera/color/image_raw”
+	        QoS profile: KEEP_LAST (history), BEST_EFFORT (reliability)
+		}
+
+	    --Depth points:{
+            	Type of msg: PointCloud2
+            	Topic name (default): “/camera/depth/points”
+            	QoS profile: KEEP_LAST (history), BEST_EFFORT (reliability)
+		}
 
     - “map” to “base_link” transform must be sent
 	
 # Output
     - Poses array ('map' as a reference frame) and users array
-	    Poses array:
-		    Type of msg: PoseArray
-            Topic name (default):  “/poses_topic”
-            QoS profile: KEEP_LAST (history), RELIABLE (reliability)
-
-        Users array:
+	    --Poses array:{
+		Type of msg: PoseArray
+            	Topic name (default):  “/poses_topic”
+            	QoS profile: KEEP_LAST (history), RELIABLE (reliability)
+		}
+		
+	    --Users array:{
 	        Type of msg: User3DArray
-            Topic name (default):  “/users3D”
-            QoS profile: KEEP_LAST (history), BEST_EFFORT (reliability)
+            	Topic name (default):  “/users3D”
+            	QoS profile: KEEP_LAST (history), BEST_EFFORT (reliability)
+		}
 
-    - Drawn frames
-	    Type of msg: Image
+    - Drawn frames:{
+	Type of msg: Image
         Topic name (default):  “/openpose/frame_humans/draw_img”
         QoS profile: KEEP_LAST (history), BEST_EFFORT (reliability)
+	}
 
 # Nodes structure
     The whole process is divided into 4 main tasks, each one implemented in a different ROS2 node:  RGBD CAMERA → ‘camera_basic’ → ‘openpose_new’ → ‘proc_human_node’ → ‘proc_depth_node’ → OUTPUT INFORMATION.
